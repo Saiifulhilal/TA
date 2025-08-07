@@ -1,0 +1,167 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "../protos/E-puck.proto"
+
+WorldInfo {
+  title "Line Follower with Obstacle"
+  basicTimeStep 24
+  FPS 30
+}
+Viewpoint {
+  orientation -0.20128033497368425 -0.8476770128135246 0.4908461150915028 5.382064437778261
+  position -2.424241049068595 1.5592751739301005 1.2361931256033725
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+  texture "empty_office"
+}
+RectangleArena {
+  translation -1.17 1.01 -0.01
+  floorSize 1.03 0.8
+  floorAppearance NULL
+}
+E-puck {
+  hidden position_0_0 2.3122728460659408e-08
+  hidden position_0_1 -2.3122210631739523e-08
+  hidden rotation_1 0 1 0 2.9802322387695313e-08
+  hidden rotation_2 0 -1 0 2.9802322387695313e-08
+  translation -1.62948 1.01949 -0.00963313
+  rotation -0.0008293127696938667 0.0297937917260493 -0.9995557224161716 -0.055675307179586575
+  controller "E_Puck_controller"
+  supervisor TRUE
+  turretSlot [
+    Lidar {
+      name "e_puck_lidar"
+      horizontalResolution 360
+      numberOfLayers 1
+    }
+  ]
+  groundSensorsSlot [
+    DistanceSensor {
+      translation -0.03 -0.02 7.34642e-08
+      rotation 0 1 0 1.5707996938995747
+      name "irR"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.03 0.02 7.34642e-08
+      rotation 0 1 0 1.5707996938995747
+      name "irL"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.02 -0.005 3.97932e-08
+      rotation 0 1 0 1.5707996938995747
+      name "irCR"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.02 0.005 3.97932e-08
+      rotation 0 1 0 1.5707996938995747
+      name "irCL"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.01 -0.013 3.67321e-08
+      rotation 0 1 0 1.5708
+      name "irGR"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.01 0.013 3.67321e-08
+      rotation 0 1 0 1.5708
+      name "irGL"
+      type "infra-red"
+    }
+  ]
+}
+Solid {
+  translation -1.21 0.56 -0.01
+  children [
+    Solid {
+      children [
+        Solid {
+          translation -0.22 0.46 0
+          rotation 0 0 1 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.3 0.001
+              }
+            }
+          ]
+          name "solid0"
+        }
+        Solid {
+          translation 0.509998 0.47 0
+          rotation 0 0 -1 -5.307179586466759e-06
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.7 0.001
+              }
+            }
+          ]
+          name "solid0(3)"
+        }
+        Solid {
+          translation -0.050002 0.47 0
+          rotation 0 0 -1 -5.307179586466759e-06
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.7 0.001
+              }
+            }
+          ]
+          name "solid0(2)"
+        }
+        Solid {
+          translation 0.230003 0.1 0
+          rotation 0 0 1 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.6 0.001
+              }
+            }
+          ]
+          name "solid0(4)"
+        }
+        Solid {
+          translation 0.230003 0.8 0
+          rotation 0 0 1 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.6 0.001
+              }
+            }
+          ]
+          name "solid0(1)"
+        }
+      ]
+      name "Mini track"
+    }
+  ]
+  name "Main Track"
+}

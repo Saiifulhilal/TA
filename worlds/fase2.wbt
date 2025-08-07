@@ -1,0 +1,297 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "../protos/E-puck.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/WoodenBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/obstacles/protos/OilBarrel.proto"
+
+WorldInfo {
+  title "Line Follower"
+  basicTimeStep 24
+  FPS 30
+}
+Viewpoint {
+  orientation 0.35519805457488884 0.3552326415770715 -0.8646641616167459 1.7155963393151783
+  position -1.1285955626667845 3.550573836560157 2.2427849298370437
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+  texture "empty_office"
+}
+RectangleArena {
+  translation -1.1 1.22 -0.01
+  floorSize 1.8 2
+  floorAppearance NULL
+}
+E-puck {
+  translation -1.89295 1.61571 -0.00988564
+  rotation -0.0047491884795317464 0.2252099278983036 -0.9742986880750825 -0.05712530717958586
+  controller "E_Puck_controller"
+  supervisor TRUE
+  turretSlot [
+    Lidar {
+      name "e_puck_lidar"
+      horizontalResolution 360
+      numberOfLayers 1
+    }
+  ]
+  groundSensorsSlot [
+    DistanceSensor {
+      translation -0.03 -0.02 7.34642e-08
+      rotation 0 1 0 1.5707996938995747
+      name "irR"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.03 0.02 7.34642e-08
+      rotation 0 1 0 1.5707996938995747
+      name "irL"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.02 -0.005 3.97932e-08
+      rotation 0 1 0 1.5707996938995747
+      name "irCR"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.02 0.005 3.97932e-08
+      rotation 0 1 0 1.5707996938995747
+      name "irCL"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.01 -0.013 3.67321e-08
+      rotation 0 1 0 1.5708
+      name "irGR"
+      type "infra-red"
+    }
+    DistanceSensor {
+      translation -0.01 0.013 3.67321e-08
+      rotation 0 1 0 1.5708
+      name "irGL"
+      type "infra-red"
+    }
+  ]
+}
+Solid {
+  translation -0.89 0.55 -0.01
+  children [
+    Group {
+      children [
+        OilBarrel {
+          translation -0.26 -0.06 0.11
+          name "oil barrel(1)"
+          height 0.2
+          radius 0.08
+        }
+        OilBarrel {
+          translation 0.01 0.81 0.11
+          name "oil barrel(2)"
+          height 0.2
+          radius 0.08
+        }
+        WoodenBox {
+          translation -0.155563 1.57382 0.05
+          rotation 0 0 1 0.785398
+          size 0.1 0.1 0.1
+        }
+        WoodenBox {
+          translation -0.289915 0.36474 0.05
+          rotation 0 0 1 0.785398
+          name "wooden box(1)"
+          size 0.1 0.1 0.1
+        }
+      ]
+    }
+    Solid {
+      children [
+        Solid {
+          translation -0.51 1.06 0
+          rotation 0 0 1 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.9 0.001
+              }
+            }
+          ]
+          name "solid0"
+        }
+        Solid {
+          translation 0.029999 1.55 0
+          rotation 0 0 1 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 1 0.001
+              }
+            }
+          ]
+          name "solid0(1)"
+        }
+        Solid {
+          translation -0.0800004 1.17 0
+          rotation 0 0 -1 -5.307179586466759e-06
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.2 0.001
+              }
+            }
+          ]
+          name "solid0(2)"
+        }
+        Solid {
+          translation -0.260001 1.29 0
+          rotation 0 0 1 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.4 0.001
+              }
+            }
+          ]
+          name "solid0(3)"
+        }
+        Solid {
+          translation -0.450002 1.42 0
+          rotation 0 0 -1 -5.307179586466759e-06
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.3 0.001
+              }
+            }
+          ]
+          name "solid0(4)"
+        }
+        Solid {
+          translation 0.509998 1.04 0
+          rotation 0 0 -1 -5.307179586466759e-06
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 1 0.001
+              }
+            }
+          ]
+          name "solid0(5)"
+        }
+        Solid {
+          translation 0.329999 0.54 0
+          rotation 0 0 1 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.4 0.001
+              }
+            }
+          ]
+          name "solid0(6)"
+        }
+        Solid {
+          translation 0.150004 0.4 0
+          rotation 0 0 -1 -5.307179586466759e-06
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.3 0.001
+              }
+            }
+          ]
+          name "solid0(7)"
+        }
+        Solid {
+          translation 0.329999 0.27 0
+          rotation 0 0 1 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.4 0.001
+              }
+            }
+          ]
+          name "solid0(8)"
+        }
+        Solid {
+          translation 0.510005 0.0500024 0
+          rotation 0 0 -1 -5.307179586466759e-06
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 0.4 0.001
+              }
+            }
+          ]
+          name "solid0(9)"
+        }
+        Solid {
+          translation -0.139997 -0.13 0
+          rotation 0 0 1 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 1.3 0.001
+              }
+            }
+          ]
+          name "solid0(10)"
+        }
+        Solid {
+          translation -0.799995 0.449992 0
+          rotation 0 0 -1 -5.307179586466759e-06
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0 0 0
+              }
+              geometry Box {
+                size 0.04 1.2 0.001
+              }
+            }
+          ]
+          name "solid0(11)"
+        }
+      ]
+      name "Red"
+    }
+  ]
+  name "Main Track"
+}
