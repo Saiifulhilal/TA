@@ -11,8 +11,8 @@ WorldInfo {
   FPS 30
 }
 Viewpoint {
-  orientation -0.20128033497368425 -0.8476770128135246 0.4908461150915028 5.382064437778261
-  position -2.424241049068595 1.5592751739301005 1.2361931256033725
+  orientation -0.304922301714029 -0.33185201366448547 0.8926906692378075 4.683519247489578
+  position -1.470732403643742 4.016057379625776 2.3182258162588094
 }
 TexturedBackground {
 }
@@ -21,7 +21,8 @@ TexturedBackgroundLight {
 }
 RectangleArena {
   translation -1.17 1.01 -0.01
-  floorSize 1.03 0.8
+  floorSize 2 2
+  floorTileSize 1 1
   floorAppearance NULL
 }
 E-puck {
@@ -38,6 +39,7 @@ E-puck {
       name "e_puck_lidar"
       horizontalResolution 360
       numberOfLayers 1
+      maxRange 0.5
     }
   ]
   groundSensorsSlot [

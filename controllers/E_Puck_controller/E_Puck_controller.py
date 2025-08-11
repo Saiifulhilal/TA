@@ -1,7 +1,8 @@
 import os
 import time
 import logging
-from typing import List, Dict, Tuple, Any
+import random
+from typing import List, Dict, Tuple, Any, Optional
 
 import gymnasium as gym
 import numpy as np
@@ -14,137 +15,153 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.monitor import Monitor
 
 # Import dari Webots
-# Pastikan modul 'controller' tersedia di lingkungan Anda
 try:
-    from controller import Supervisor, Lidar
+    from controller import Supervisor, Lidar, Node
 except ImportError:
-    print("Peringatan: Modul 'controller' Webots tidak ditemukan. Skrip ini hanya akan berjalan di dalam Webots.")
-    # Definisikan kelas placeholder agar tidak terjadi error saat di luar Webots
-    class Supervisor:
-        def getBasicTimeStep(self): return 32 # Dummy value
-        def getSelf(self): return type('Node', (object,), {'getField': lambda s, f: type('Field', (object,), {'setSFVec3f': lambda s, v: None, 'setSFRotation': lambda s, r: None})()})()
-        def step(self, timestep): return 0 # Dummy value
-        def getWorldPath(self): return "dummy_world.wbt" # Dummy value
-    class Lidar:
-        def enable(self, timestep): pass
-        def enablePointCloud(self): pass
-        def getMaxRange(self): return 1.0 # Dummy value
-        def getHorizontalResolution(self): return 0 # Dummy value
-        def getPointCloud(self): return [] # Dummy value
-    # Placeholder for Device objects
+    print("Peringatan: Modul 'controller' Webots tidak ditemukan. Skrip ini hanya akan berjalan di luar Webots untuk pengujian.")
+    # Definisikan kelas placeholder untuk pengujian di luar Webots
     class Device:
         def enable(self, timestep): pass
-        def getValue(self): return 0.0 # Dummy value
-    class Motor:
+        def getValue(self): return 0.0
+    class Motor(Device):
         def setPosition(self, pos): pass
         def setVelocity(self, vel): pass
-    class DummyRobot: # A more complete dummy for Supervisor
-        def getDevice(self, name):
-            if 'motor' in name: return Motor()
-            return Device()
+    class Lidar(Device):
+        def enablePointCloud(self): pass
+        def getMaxRange(self): return 1.0
+        def getHorizontalResolution(self): return 0
+        def getPointCloud(self): return []
+    class Node:
+        def getPosition(self): return [0.0, 0.0, 0.0]
+        def getField(self, field_name): return type('Field', (object,), {'setSFVec3f': lambda s, v: None, 'setSFRotation': lambda s, r: None})()
+        def resetPhysics(self): pass
+    class DummyRobot:
         def getBasicTimeStep(self): return 32
-        def getSelf(self): return type('Node', (object,), {'getField': lambda s, f: type('Field', (object,), {'setSFVec3f': lambda s, v: None, 'setSFRotation': lambda s, r: None})()})()
+        def getSelf(self) -> Node: return Node()
         def step(self, timestep): return 0
         def getWorldPath(self): return "dummy_world.wbt"
-    Supervisor = DummyRobot # Assign the dummy robot to Supervisor for testing outside Webots
-
+        def getDevice(self, name):
+            if 'motor' in name: return Motor()
+            if 'lidar' in name: return Lidar()
+            return Device()
+    Supervisor = DummyRobot
 
 # ==============================================================================
-# KONFIGURASI UTAMA
+# KONFIGURASI UTAMA (Tidak diubah)
 # ==============================================================================
-# Sentralisasikan semua parameter yang dapat diubah di sini agar mudah dimodifikasi.
 TRAINING_CONFIG = {
-    "phase_name": "Pelatihan Fase 1.04",
+    "phase_name": "Training Fase 2 - 1",
     "training_cycle": 1,
-    "track_id": 0,
+    "track_id": 1, 
     "models_dir": "saved_models_sb3",
-    # model_filename ini adalah NAMA FILE UNTUK MENYIMPAN model hasil pelatihan ini
-    "model_filename": "dqn_model_Fase1.04.zip", # <-- DIUBAH: Nama file untuk menyimpan model BARU
+    "load_model_filename": None,
+    "model_filename": "dqn_fase4_model.zip",
     "tensorboard_log_dir": "tensorboard_logs/",
-
+    
     "training": {
-        "num_episodes": 1000,
-        "max_steps_per_episode": 400, # Ditingkatkan menjadi 200 langkah per episode
+        "num_episodes": 1500,
+        "max_steps_per_episode": 1000,
         "algorithm": "DQN",
     },
-
+    
     "dqn_params": {
         "policy": "MlpPolicy",
-        "learning_rate": 0.001,      # Learning rate standar untuk pembelajaran cepat
-        "buffer_size": 50000,
+        "learning_rate": 0.00025,
+        "buffer_size": 100000,
         "learning_starts": 1000,
-        "batch_size": 32,
+        "batch_size": 64,
         "tau": 1.0,
-        "gamma": 0.99,               # Fokus pada reward jangka panjang
-        "train_freq": (1, "step"),
-        "target_update_interval": 500,
+        "gamma": 0.99,
+        "train_freq": (4, "step"),
+        "target_update_interval": 1000,
         "verbose": 0,
-        # --- Parameter untuk mengontrol Epsilon ---
-        "exploration_initial_eps": 1.0,  # Nilai epsilon awal
-        "exploration_final_eps": 0.05,   # Nilai epsilon akhir
-        "exploration_fraction": 0.1,     # Fraksi dari total timesteps untuk penurunan epsilon
+        "exploration_fraction": 0.5, # Sesuai diskusi kita, dinaikkan
+        "exploration_final_eps": 0.05,
+        "policy_kwargs": {
+            "net_arch": [128, 128]
+        }
     },
 
     "env_params": {
         "max_lives": 3,
         "buffer_size": 5,
         "num_lidar_sectors": 8,
-        "action_space_velocities": [(6.28, 6.28), (3.14, 6.28), (6.28, 3.14)], # Maju, Kiri, Kanan
-        "checkpoints": {0: [-1.62948, 1.01949, -0.00963313]},
+        "action_space_velocities": [(6.28, 6.28), (3.14, 6.28), (6.28, 3.14)],
+        "checkpoints": {
+            0: [-1.62948, 1.01949, -0.00963313],
+            1: [-1.89295, 1.61571, -0.00988564],
+            2: [0.0, 0.0, 0.0]
+        },
         
-        # Thresholds (nilai 0-1)
-        "line_detect_threshold": 0.5,
+        "line_detect_threshold": 0.4,
         "center_line_detect_threshold": 0.8,
-        "proximity_avoid_threshold": 0.5,
         "proximity_collision_threshold": 0.7,
 
-        # Rewards & Penalties (Diperbarui untuk Fase Easy)
-        "reward_on_track_center": 5.0,      # Sangat memprioritaskan tengah jalur
-        "reward_on_track_edge": 0.7,        # Reward untuk berada di pinggir jalur
-        "reward_avoid_collision": 1.5,      # Turunkan sedikit, karena sedikit rintangan di fase easy
-        "reward_action_straight": 0.5,      # Dorong agen untuk maju secara konsisten
-        "penalty_time_step": -0.05,         # Penalty kecil untuk setiap langkah waktu
-        "penalty_off_track": -6.0,          # Jadikan ini penalty terberat untuk keluar jalur
-        "penalty_collision": -5.0,          # Penalty besar saat terjadi tabrakan
-        "penalty_action_turn": -0.05,       # Penalty kecil untuk aksi berbelok
+        "reward_on_track_center": 20.0,
+        "reward_on_track_edge": 2.0,
+        "penalty_time_step": -0.05,
+        "penalty_collision": -30.0,
+        "penalty_distance_from_line_factor": -2.0,
+        
+        # Parameter baru untuk detektor macet
+        "stuck_detector_threshold": 0.001, # Jarak minimal pergerakan
+        "stuck_detector_patience": 50,     # Jumlah langkah untuk dianggap macet
+        
+        "shaping_weights": {
+            0: {"track": 10.0, "obstacle": 0.0, "speed": 0.0},
+            1: {"track": 10.0, "obstacle": 5.0, "speed": 0.0},
+            2: {"track": 8.0, "obstacle": 6.0, "speed": 2.0}
+        },
+
+        "sensor_calibration": {
+            "ground_sensors": {
+                "irR": [200.0, 950.0], "irL": [200.0, 950.0], "irGR": [300.0, 1000.0],
+                "irGL": [300.0, 1000.0], "irCL": [400.0, 1000.0], "irCR": [400.0, 1000.0]
+            },
+            "prox_sensors": {
+                "ps0": [80.0, 1024.0], "ps7": [80.0, 1024.0], "ps1": [80.0, 800.0],
+                "ps6": [80.0, 800.0], "ps2": [80.0, 600.0], "ps5": [80.0, 600.0],
+                "ps3": [80.0, 500.0], "ps4": [80.0, 500.0]
+            },
+            "lidar": {"min_range": 0.0, "max_range": 0.5}
+        }
     }
 }
 
 # ==============================================================================
-# KONSTANTA
+# KONSTANTA (DENGAN TAMBAHAN)
 # ==============================================================================
-# Menggunakan konstanta untuk alasan terminasi agar konsisten dan menghindari typo.
 TERMINATION_REASON_MAX_STEPS = "Max Steps"
 TERMINATION_REASON_OFF_TRACK = "Off Track"
 TERMINATION_REASON_NO_LIVES = "No Lives Left"
+TERMINATION_REASON_STUCK = "Stuck" # Alasan terminasi baru
 
 # ==============================================================================
-# FUNGSI UTILITAS
+# FUNGSI UTILITAS (Tidak diubah)
 # ==============================================================================
 def setup_logging():
-    """Mengatur konfigurasi logging dasar."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 def format_duration(seconds: float) -> str:
-    """Mengubah detik menjadi format jam, menit, detik yang mudah dibaca."""
     seconds = int(seconds)
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    secs = seconds % 60
+    hours, minutes, secs = seconds // 3600, (seconds % 3600) // 60, seconds % 60
     return f"{hours} jam, {minutes} menit, {secs} detik"
 
 # ==============================================================================
-# KELAS CALLBACK UNTUK LOGGING KUSTOM
+# KELAS NORMALISASI SENSOR (Tidak diubah)
+# ==============================================================================
+class SensorNormalization:
+    @staticmethod
+    def min_max_scaling(raw_value: float, min_val: float, max_val: float, inverted=False) -> float:
+        if max_val - min_val == 0: return 0.0
+        normalized = (raw_value - min_val) / (max_val - min_val)
+        normalized = max(0.0, min(1.0, normalized))
+        return 1.0 - normalized if inverted else normalized
+
+# ==============================================================================
+# KELAS CALLBACK (DENGAN PENYESUAIAN)
 # ==============================================================================
 class CustomLoggerCallback(BaseCallback):
-    """
-    Callback kustom untuk mencatat statistik episode secara detail dan
-    menyediakan ringkasan di akhir fase pelatihan.
-    """
     def __init__(self, config: Dict[str, Any], verbose: int = 0):
         super().__init__(verbose)
         self.config = config
@@ -153,419 +170,327 @@ class CustomLoggerCallback(BaseCallback):
         self.num_episodes = config["training"]["num_episodes"]
         self.episode_count = 0
         self.summary = {
-            TERMINATION_REASON_MAX_STEPS: 0,
-            TERMINATION_REASON_OFF_TRACK: 0,
-            TERMINATION_REASON_NO_LIVES: 0,
-            "Collision Events": 0,
-            "Total Lives Lost": 0,
-            "Total Steps": 0
+            TERMINATION_REASON_MAX_STEPS: 0, TERMINATION_REASON_OFF_TRACK: 0,
+            TERMINATION_REASON_NO_LIVES: 0, TERMINATION_REASON_STUCK: 0, # Ditambahkan
+            "Collision Events": 0, "Total Lives Lost": 0, "Total Steps": 0
         }
 
     def _on_step(self) -> bool:
-        """Dipanggil setelah setiap langkah di environment."""
         if self.locals['dones'][0]:
             self.episode_count += 1
             info = self.locals['infos'][0]
-
             if 'episode' in info:
-                ep_rew = info['episode']['r']
-                ep_len = info['episode']['l']
-                term_reason = info.get('termination_reason', TERMINATION_REASON_MAX_STEPS)
-                rew_breakdown = info.get('reward_breakdown', {})
-                lives_lost = info.get('lives_lost', 0)
-                collisions = info.get('collision_events', 0)
-
+                ep_rew, ep_len = info['episode']['r'], info['episode']['l']
+                term_reason = info.get('termination_reason') or TERMINATION_REASON_MAX_STEPS
                 self.summary[term_reason] = self.summary.get(term_reason, 0) + 1
-                self.summary["Total Lives Lost"] += lives_lost
-                self.summary["Collision Events"] += collisions
-
-                # Mengambil nilai epsilon dari model
+                self.summary["Total Lives Lost"] += info.get('lives_lost', 0)
+                self.summary["Collision Events"] += info.get('collision_events', 0)
                 epsilon = self.model.exploration_rate if hasattr(self.model, 'exploration_rate') else -1
-
+                
                 log_msg = (
                     f"Siklus {self.training_cycle} | {self.phase_name} | Ep {self.episode_count}/{self.num_episodes} | "
                     f"Reward: {ep_rew:.2f} | Steps: {ep_len} | Epsilon: {epsilon:.4f} | "
-                    f"Terminasi: {term_reason}\n"
-                    f"    Breakdown Reward -> "
-                    f"Track: {rew_breakdown.get('track', 0.0):.2f}, "
-                    f"Obstacle: {rew_breakdown.get('obstacle', 0.0):.2f}, "
-                    f"Avoid: {rew_breakdown.get('avoid', 0.0):.2f}, "
-                    f"Action: {rew_breakdown.get('action', 0.0):.2f}"
+                    f"Terminasi: {term_reason}"
                 )
                 logging.info(log_msg)
         return True
 
     def _on_training_end(self) -> None:
-        """Menyimpan total langkah yang telah dijalani di akhir pelatihan."""
         self.summary["Total Steps"] = self.num_timesteps
 
 # ==============================================================================
-# KELAS ENVIRONMENT E-PUCK (STANDAR GYMNASIUM)
+# KELAS ENVIRONMENT E-PUCK (DENGAN DETEKTOR MACET)
 # ==============================================================================
 class EPuckGymEnv(gym.Env):
-    """
-    Environment Gymnasium untuk robot e-puck di Webots.
-    Mengintegrasikan sensor, aktuator, dan logika reward/penalty.
-    """
     metadata = {'render_modes': []}
 
     def __init__(self, robot: Supervisor, config: Dict[str, Any]):
         super().__init__()
         self.robot = robot
         self.config = config["env_params"]
+        self.dqn_config = config["dqn_params"]
+        self.track_id = config["track_id"]
+        
         self.timestep: int = int(self.robot.getBasicTimeStep())
-
-        # Inisialisasi Sensor dan Motor
         self._setup_devices()
-
-        # Atribut Environment
+        
         self.max_lives: int = self.config["max_lives"]
-        self.robot_node = self.robot.getSelf()
+        self.lives: int = self.max_lives
+        
+        self.robot_node: Node = self.robot.getSelf()
         self.translation_field = self.robot_node.getField("translation")
         self.rotation_field = self.robot_node.getField("rotation")
-        
-        # Inisialisasi State
-        self.ground_buffers: Dict[str, List[float]] = {name: [] for name in self.ground_sensor_names}
-        self.buffer_size: int = self.config["buffer_size"]
-        
-        # Definisi Ruang Aksi dan Observasi
+
         state_size = len(self.ground_sensor_names) + len(self.prox_sensor_names) + self.config["num_lidar_sectors"]
         self.action_space = spaces.Discrete(len(self.config["action_space_velocities"]))
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(state_size,), dtype=np.float32)
-
-        # Kalibrasi Sensor (asumsi nilai min/max)
-        self.ground_calibration: Dict[str, Tuple[float, float]] = {
-            name: (9.0, 1000.0) for name in self.ground_sensor_names
-        }
-        self.max_proximity_value: float = 1024.0
-
-        # Manajemen Teleportasi
-        self._teleported_recently: bool = False
-        self._teleport_cooldown: int = 0 # Jumlah langkah untuk mengabaikan tabrakan setelah teleport
+        
+        self.previous_potential: float = 0.0
+        self.episode_collision_events: int = 0
+        self.steps_off_track: int = 0
+        
+        # Variabel baru untuk detektor macet
+        self.stuck_counter: int = 0
+        self.last_position: Optional[List[float]] = None
 
     def _setup_devices(self):
-        """Menginisialisasi semua perangkat keras (sensor dan motor) pada robot."""
-        self.ground_sensor_names: List[str] = ['irR', 'irL', 'irGR', 'irGL', 'irCL', 'irCR']
+        self.ground_sensor_names = ['irR', 'irL', 'irGR', 'irGL', 'irCL', 'irCR']
+        self.prox_sensor_names = [f'ps{i}' for i in range(8)]
+        
         self.ground_sensors = {name: self.robot.getDevice(name) for name in self.ground_sensor_names}
-        for sensor in self.ground_sensors.values(): sensor.enable(self.timestep)
-
-        self.prox_sensor_names: List[str] = [f'ps{i}' for i in range(8)]
         self.prox_sensors = {name: self.robot.getDevice(name) for name in self.prox_sensor_names}
-        for sensor in self.prox_sensors.values(): sensor.enable(self.timestep)
-
+        for sensor in list(self.ground_sensors.values()) + list(self.prox_sensors.values()):
+            sensor.enable(self.timestep)
+        
         self.lidar: Lidar = self.robot.getDevice('e_puck_lidar')
-        if self.lidar:
-            self.lidar.enable(self.timestep)
-            self.lidar.enablePointCloud()
-            self.lidar_max_range: float = self.lidar.getMaxRange()
-            self.lidar_num_beams: int = self.lidar.getHorizontalResolution()
-        else:
-            self.lidar_max_range, self.lidar_num_beams = 1.0, 0
-
+        self.lidar.enable(self.timestep)
+        self.lidar.enablePointCloud()
+        self.lidar_num_beams: int = self.lidar.getHorizontalResolution()
+        
         self.left_motor = self.robot.getDevice('left wheel motor')
         self.right_motor = self.robot.getDevice('right wheel motor')
         for motor in [self.left_motor, self.right_motor]:
             motor.setPosition(float('inf'))
-            motor.setVelocity(0)
+            motor.setVelocity(0.0)
 
     def _get_state(self) -> np.ndarray:
-        """Membaca semua sensor dan menyusun vektor state yang dinormalisasi."""
         state_numeric: List[float] = []
-
-        # Ground Sensors
-        for name, sensor in self.ground_sensors.items():
-            self.ground_buffers[name].append(sensor.getValue())
-            if len(self.ground_buffers[name]) > self.buffer_size:
-                self.ground_buffers[name].pop(0)
-            state_numeric.append(self._normalize_ground_sensor(np.mean(self.ground_buffers[name]), name))
-
-        # Proximity Sensors
-        for sensor in self.prox_sensors.values():
-            val = max(0.0, min(1.0, sensor.getValue() / self.max_proximity_value))
-            state_numeric.append(val)
-
-        # Lidar Sectors
-        if self.lidar and self.lidar_num_beams > 0:
-            point_cloud = self.lidar.getPointCloud()
-            if point_cloud and len(point_cloud) > 0:
-                ranges = [np.sqrt(p.x**2 + p.y**2) for p in point_cloud]
-                sector_size = self.lidar_num_beams // self.config["num_lidar_sectors"]
-                lidar_sector_values = []
-                for i in range(self.config["num_lidar_sectors"]):
-                    sector_ranges = ranges[i * sector_size:(i + 1) * sector_size]
-                    valid_ranges = [r for r in sector_ranges if np.isfinite(r)]
-                    min_dist = min(valid_ranges) if valid_ranges else self.lidar_max_range
-                    normalized_dist = min(min_dist, self.lidar_max_range) / self.lidar_max_range
-                    lidar_sector_values.append(normalized_dist)
-                state_numeric.extend(lidar_sector_values)
-            else:
-                state_numeric.extend([1.0] * self.config["num_lidar_sectors"])
         
+        calib = self.config["sensor_calibration"]["ground_sensors"]
+        for name in self.ground_sensor_names:
+            min_val, max_val = calib[name]
+            state_numeric.append(SensorNormalization.min_max_scaling(self.ground_sensors[name].getValue(), min_val, max_val, inverted=True))
+        
+        calib = self.config["sensor_calibration"]["prox_sensors"]
+        for name in self.prox_sensor_names:
+            min_val, max_val = calib[name]
+            state_numeric.append(SensorNormalization.min_max_scaling(self.prox_sensors[name].getValue(), min_val, max_val))
+        
+        max_range = self.config["sensor_calibration"]["lidar"]["max_range"]
+        point_cloud = self.lidar.getPointCloud()
+        if point_cloud and self.lidar_num_beams > 0:
+            ranges = [np.sqrt(p.x**2 + p.y**2) for p in point_cloud]
+            sector_size = self.lidar_num_beams // self.config["num_lidar_sectors"]
+            for i in range(self.config["num_lidar_sectors"]):
+                sector_ranges = ranges[i * sector_size:(i + 1) * sector_size]
+                min_dist = min((r for r in sector_ranges if np.isfinite(r)), default=max_range)
+                state_numeric.append(SensorNormalization.min_max_scaling(min_dist, 0.0, max_range, inverted=True))
+        else:
+            state_numeric.extend([0.0] * self.config["num_lidar_sectors"])
+            
         return np.array(state_numeric, dtype=np.float32)
+    
+    def _calculate_potential(self, state: np.ndarray, action: int) -> float:
+        weights = self.config["shaping_weights"][self.track_id]
+        phi_track = state[4] + state[5]
+        prox_values = state[6:14]
+        phi_obstacle = np.sum(1.0 - prox_values)
+        phi_speed = 1.0 if action == 0 else 0.5
+        return weights["track"] * phi_track + weights["obstacle"] * phi_obstacle + weights["speed"] * phi_speed
 
-    def _normalize_ground_sensor(self, raw_value: float, sensor_name: str) -> float:
-        """Normalisasi nilai sensor tanah ke rentang [0, 1]."""
-        min_val, max_val = self.ground_calibration[sensor_name]
-        if (max_val - min_val) == 0: return 0.0
-        # Nilai dibalik karena sensor IR Webots memberi nilai lebih tinggi untuk permukaan gelap (garis)
-        return max(0.0, min(1.0, (max_val - raw_value) / (max_val - min_val)))
-
-    def _reset_simulation_state(self, track_id: int):
-        """Mereset posisi dan fisika robot ke checkpoint yang ditentukan."""
-        cp = self.config["checkpoints"].get(track_id, [0, 0, 0])
-        self.translation_field.setSFVec3f(cp)
-        self.rotation_field.setSFRotation([0, 0, 1, 0])
-        self.robot_node.resetPhysics()
-        # Penting: Berikan beberapa langkah simulasi agar fisika stabil setelah reset
-        for _ in range(5): self.robot.step(self.timestep)
-        self.left_motor.setVelocity(0.0)
-        self.right_motor.setVelocity(0.0)
-        for name in self.ground_sensor_names: self.ground_buffers[name].clear()
-        # Reset flag teleportasi dan cooldown saat status simulasi direset
-        self._teleported_recently = False
-        self._teleport_cooldown = 0
-
-        # Tambahkan dorongan maju kecil setelah teleportasi untuk membantu robot menjauh dari titik tabrakan
-        initial_forward_steps = 5 # Gerakan maju selama 5 langkah simulasi
-        initial_speed = 1.0 # Kecepatan maju kecil
-        self.left_motor.setVelocity(initial_speed)
-        self.right_motor.setVelocity(initial_speed)
-        for _ in range(initial_forward_steps):
-            self.robot.step(self.timestep)
-        self.left_motor.setVelocity(0.0) # Hentikan motor setelah dorongan
-        self.right_motor.setVelocity(0.0)
-
-    def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
-        """Mereset environment untuk episode baru."""
-        super().reset(seed=seed)
-        self.lives = self.max_lives
-        self._reset_simulation_state(options.get("track_id", 0) if options else 0)
-
-        # Reset statistik episode
-        self.episode_reward_breakdown = {'track': 0.0, 'action': 0.0, 'obstacle': 0.0, 'avoid': 0.0}
-        self.episode_collision_events = 0 # Reset total collision events for new episode
-
-        # Pastikan flag teleportasi direset untuk episode baru
-        self._teleported_recently = False
-        self._teleport_cooldown = 0
-
-        return self._get_state(), {}
-
-    def teleport_to_checkpoint(self, track_id: int):
-        """Teleportasi robot ke checkpoint tanpa mereset seluruh episode."""
-        logging.info(f"Robot diteleportasi ke checkpoint {track_id}.") # Log teleportasi
-        self._reset_simulation_state(track_id)
-        # Saat teleportasi, aktifkan cooldown
-        self._teleported_recently = True
-        self._teleport_cooldown = 30 # Jumlah langkah untuk mengabaikan tabrakan setelah teleport (ditingkatkan)
-        return self._get_state()
-
-    def _calculate_rewards(self, action: int) -> Tuple[float, str, bool]:
-        """Menghitung total reward dan alasan terminasi jika ada."""
-        total_reward = 0.0
+    def _calculate_base_rewards(self, state: np.ndarray) -> Tuple[float, str, bool]:
+        prox_vals, ground_vals = state[6:14], state[0:6]
+        is_colliding = any(v > self.config["proximity_collision_threshold"] for v in prox_vals)
         termination_reason = ""
+        base_reward = self.config["penalty_time_step"]
         
-        # Dapatkan nilai sensor jarak saat ini
-        prox_values = [s.getValue() for s in self.prox_sensors.values()]
-        
-        # Deteksi tabrakan berdasarkan nilai sensor mentah
-        raw_is_colliding = any(v > self.config["proximity_collision_threshold"] * self.max_proximity_value for v in prox_values)
-        collided_in_this_step = raw_is_colliding # Flag ini mencerminkan status sensor aktual
-
-        # Deteksi penghindaran berdasarkan nilai sensor mentah
-        is_avoiding = any(v > self.config["proximity_avoid_threshold"] * self.max_proximity_value for v in prox_values)
-
-        # Tentukan apakah tabrakan harus dipertimbangkan untuk reward/penalti (mengabaikan jika baru diteleportasi)
-        is_colliding_for_rewards = raw_is_colliding and not self._teleported_recently
-
-        # 1. Reward Aksi & Penalti Waktu
-        action_reward = self.config["reward_action_straight"] if action == 0 else self.config["penalty_action_turn"]
-        total_reward += action_reward + self.config["penalty_time_step"]
-        self.episode_reward_breakdown['action'] += action_reward
-
-        # 2. Reward Menghindari & Penalti Tabrakan
-        if is_colliding_for_rewards: # Gunakan ini untuk nyawa dan penalti
-            obstacle_reward = self.config["penalty_collision"]
-            self.episode_collision_events += 1 # Ini adalah penghitung kumulatif untuk episode
-            self.lives -= 1 # Nyawa berkurang saat terjadi tabrakan
+        if is_colliding:
+            base_reward += self.config["penalty_collision"]
+            self.episode_collision_events += 1
+            self.lives -= 1
             if self.lives <= 0:
                 termination_reason = TERMINATION_REASON_NO_LIVES
-        elif is_avoiding and not is_colliding_for_rewards: # Beri reward menghindari jika tidak dalam kondisi tabrakan yang dihukum
-            obstacle_reward = self.config["reward_avoid_collision"]
-        else:
-            obstacle_reward = 0.0
-            
-        total_reward += obstacle_reward
-        self.episode_reward_breakdown['obstacle'] += self.config["penalty_collision"] if is_colliding_for_rewards else 0
-        self.episode_reward_breakdown['avoid'] += self.config["reward_avoid_collision"] if is_avoiding and not is_colliding_for_rewards else 0
+        
+        if not termination_reason:
+            is_on_center = any(g > self.config["center_line_detect_threshold"] for g in ground_vals[4:6])
+            is_on_edge = any(g > self.config["line_detect_threshold"] for g in ground_vals)
 
-        # 3. Reward Mengikuti Jalur (hanya jika belum ada terminasi lain dari tabrakan fatal)
-        if not termination_reason: # Jika belum ada terminasi karena kehabisan nyawa
-            ground_vals = [self._normalize_ground_sensor(s.getValue(), n) for n, s in self.ground_sensors.items()]
-            on_center = (ground_vals[4] > self.config["center_line_detect_threshold"] and
-                         ground_vals[5] > self.config["center_line_detect_threshold"])
-            on_track = any(s > self.config["line_detect_threshold"] for s in ground_vals)
-
-            if on_center:
-                track_reward = self.config["reward_on_track_center"]
-            elif on_track:
-                track_reward = self.config["reward_on_track_edge"]
+            if is_on_center:
+                base_reward += self.config["reward_on_track_center"]
+                self.steps_off_track = 0
+            elif is_on_edge:
+                base_reward += self.config["reward_on_track_edge"]
+                self.steps_off_track = 0
             else:
-                track_reward = self.config["penalty_off_track"]
-                termination_reason = TERMINATION_REASON_OFF_TRACK # Robot keluar jalur
+                self.steps_off_track += 1
+                distance_penalty = self.steps_off_track * self.config["penalty_distance_from_line_factor"]
+                base_reward += distance_penalty
                 
-            total_reward += track_reward
-            self.episode_reward_breakdown['track'] += track_reward
+                if self.steps_off_track > 100:
+                    termination_reason = TERMINATION_REASON_OFF_TRACK
 
-        return total_reward, termination_reason, collided_in_this_step # Mengembalikan flag baru
+        return base_reward, termination_reason, is_colliding
+    
+    def _check_if_stuck(self) -> bool:
+        """Memeriksa apakah robot macet dengan membandingkan posisi saat ini dan sebelumnya."""
+        current_position = self.robot_node.getPosition()
+        if self.last_position is not None:
+            distance_moved = np.linalg.norm(np.array(current_position) - np.array(self.last_position))
+            if distance_moved < self.config["stuck_detector_threshold"]:
+                self.stuck_counter += 1
+            else:
+                self.stuck_counter = 0 # Reset jika bergerak
+        
+        self.last_position = current_position
+        return self.stuck_counter >= self.config["stuck_detector_patience"]
 
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict]:
-        """Menjalankan satu langkah di environment."""
+    def _perform_evasive_maneuver(self):
+        logging.info("Tabrakan terdeteksi! Melakukan manuver menghindar yang lebih terkontrol.")
+        self.left_motor.setVelocity(-2.0)
+        self.right_motor.setVelocity(-2.0)
+        for _ in range(15):
+            if self.robot.step(self.timestep) == -1: return
+
+        turn_speed = 2.5
+        turn_direction = 1 if random.random() > 0.5 else -1
+        self.left_motor.setVelocity(turn_speed * turn_direction)
+        self.right_motor.setVelocity(-turn_speed * turn_direction)
+        for _ in range(20):
+            if self.robot.step(self.timestep) == -1: return
+
+        self.left_motor.setVelocity(0.0)
+        self.right_motor.setVelocity(0.0)
+        self.robot.step(self.timestep)
+
+    def _reset_simulation_state(self):
+        cp = self.config["checkpoints"][self.track_id]
+        self.translation_field.setSFVec3f(cp)
+        self.rotation_field.setSFRotation([0, 0, 1, random.uniform(-0.26, 0.26)])
+        self.robot_node.resetPhysics()
+        
+        for _ in range(5):
+            self.robot.step(self.timestep)
+
+    def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict[str, Any]]:
+        super().reset(seed=seed)
+        self._reset_simulation_state()
+        
+        self.lives = self.max_lives
+        self.episode_collision_events = 0
+        self.steps_off_track = 0
+        
+        # Reset detektor macet
+        self.stuck_counter = 0
+        self.last_position = self.robot_node.getPosition()
+        
+        initial_state = self._get_state()
+        self.previous_potential = self._calculate_potential(initial_state, 0)
+        
+        return initial_state, {}
+
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         if self.robot.step(self.timestep) == -1:
-            # Jika simulasi berhenti, akhiri episode
-            return self._get_state(), 0.0, True, True, {}
+            return self._get_state(), 0.0, True, False, {}
 
-        # Kurangi cooldown teleportasi
-        if self._teleport_cooldown > 0:
-            self._teleport_cooldown -= 1
-            if self._teleport_cooldown == 0:
-                self._teleported_recently = False # Nonaktifkan flag setelah cooldown selesai
-
-        # Terapkan aksi ke motor
+        # Terapkan aksi
         left_speed, right_speed = self.config["action_space_velocities"][action]
         self.left_motor.setVelocity(left_speed)
         self.right_motor.setVelocity(right_speed)
-
-        # Hitung reward, tentukan alasan terminasi, dan dapatkan status tabrakan dari _calculate_rewards
-        # `collided_in_this_step` akan bernilai True hanya jika tabrakan terdeteksi di langkah ini
-        reward, termination_reason_from_calc, collided_in_this_step = self._calculate_rewards(action)
         
-        terminated = False
-        truncated = False
-        info = {}
-
-        # Tentukan apakah episode berakhir
-        if self.lives <= 0:
-            terminated = True
-            info['termination_reason'] = TERMINATION_REASON_NO_LIVES
-        elif termination_reason_from_calc == TERMINATION_REASON_OFF_TRACK:
-            terminated = True
-            info['termination_reason'] = TERMINATION_REASON_OFF_TRACK
+        # Ambil state dan hitung reward
+        current_state = self._get_state()
+        base_reward, termination_reason, collided = self._calculate_base_rewards(current_state)
         
-        # Logika teleportasi:
-        # Jika terjadi tabrakan *di langkah ini* (collided_in_this_step adalah True)
-        # DAN episode belum berakhir (artinya masih ada nyawa tersisa setelah tabrakan ini)
-        # DAN robot tidak baru saja diteleportasi (tidak dalam masa cooldown)
-        # maka teleportasi robot ke checkpoint.
-        # Ini memastikan robot hanya diteleportasi sekali per insiden tabrakan non-fatal.
-        if collided_in_this_step and not terminated and not self._teleported_recently:
-            self.teleport_to_checkpoint(self.config.get("track_id", 0))
-            # Flag `_teleported_recently` dan `_teleport_cooldown` akan diatur di `teleport_to_checkpoint`
+        # Periksa kondisi macet
+        if not termination_reason and self._check_if_stuck():
+            termination_reason = TERMINATION_REASON_STUCK
+            base_reward -= 10 # Beri penalti tambahan karena macet
+            
+        terminated = bool(termination_reason)
+        next_state = current_state
 
-        # Ambil observasi berikutnya *setelah* potensi teleportasi
-        next_observation = self._get_state()
+        # Lakukan manuver jika terjadi tabrakan non-fatal
+        if collided and not terminated:
+            self._perform_evasive_maneuver()
+            next_state = self._get_state()
+            self.previous_potential = self._calculate_potential(next_state, action)
+            # Reset posisi terakhir setelah manuver untuk menghindari deteksi macet yang salah
+            self.last_position = self.robot_node.getPosition()
+        
+        # Hitung reward shaping
+        current_potential = self._calculate_potential(next_state, action)
+        shaping_reward = (self.dqn_config["gamma"] * current_potential) - self.previous_potential
+        self.previous_potential = current_potential
+        total_reward = base_reward + shaping_reward
 
-        if terminated:
-            info['reward_breakdown'] = self.episode_reward_breakdown
-            info['lives_lost'] = self.max_lives - self.lives
-            info['collision_events'] = self.episode_collision_events
-
-        return next_observation, reward, terminated, truncated, info
+        info = {
+            'lives_lost': self.max_lives - self.lives,
+            'collision_events': self.episode_collision_events,
+            'termination_reason': termination_reason if terminated else None
+        }
+        
+        return next_state, float(total_reward), terminated, False, info
 
 # ==============================================================================
-# FUNGSI UTAMA PELATIHAN
+# FUNGSI UTAMA PELATIHAN (Tidak diubah)
 # ==============================================================================
 def main(config: Dict[str, Any]):
-    """Fungsi utama untuk menjalankan seluruh proses pelatihan."""
     setup_logging()
     robot = Supervisor()
     
-    # Stabilisasi awal dunia Webots
-    for _ in range(10):
-        robot.step(int(robot.getBasicTimeStep()))
-
-    # Persiapan path dan direktori
-    base_dir = os.path.dirname(__file__)
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        base_dir = os.getcwd() 
+        
     models_dir = os.path.join(base_dir, config["models_dir"])
     os.makedirs(models_dir, exist_ok=True)
     
-    # --- PERBAIKAN: Memisahkan path untuk load dan save model ---
-    # Path untuk model yang akan DIMUAT (model dari fase sebelumnya)
-    # Anda perlu mengganti nama file ini sesuai dengan model yang ingin Anda lanjutkan
-    load_model_filename = "dqn_model_Fase1.03.zip" # <-- GANTI INI sesuai model yang ingin dimuat
-    load_model_path = os.path.join(models_dir, load_model_filename)
-
-    # Path untuk model yang akan DISIMPAN (model hasil pelatihan ini)
-    # Ini akan mengambil nama dari config["model_filename"]
-    save_model_path = os.path.join(models_dir, config["model_filename"])
-    
-    logging.info(f"Dunia aktif: {os.path.basename(robot.getWorldPath())}")
-    logging.info(f"Memulai siklus: {config['training_cycle']} - {config['phase_name']}")
-
-    # Inisialisasi Environment dan Model
     env = EPuckGymEnv(robot=robot, config=config)
     env = Monitor(env)
     check_env(env)
 
-    # Logika memuat atau membuat model
-    if os.path.exists(load_model_path): # <-- Cek keberadaan model yang akan dimuat
+    load_model_path = config.get("load_model_filename")
+    if load_model_path:
+        load_model_path = os.path.join(models_dir, load_model_path)
+
+    if load_model_path and os.path.exists(load_model_path):
         logging.info(f"Memuat model yang ada dari: {load_model_path}")
         model = DQN.load(load_model_path, env=env)
-        
-        # Setel ulang learning rate jika perlu
         model.learning_rate = config["dqn_params"]["learning_rate"]
-        
-        # --- PERBAIKAN: Mengatur ulang Epsilon untuk melanjutkan pelatihan ---
-        # Mengatur ulang exploration_rate ke nilai awal yang baru
-        model.exploration_rate = config["dqn_params"]["exploration_initial_eps"]
-        # MENGATUR ULANG NUM_TIMESTEPS MODEL UNTUK MEMULAI JADWAL EXPLORASI DARI AWAL
-        model.num_timesteps = 0 
-        
     else:
-        logging.info(f"Model '{load_model_filename}' tidak ditemukan. Membuat model DQN baru.")
-        tensorboard_log_path = os.path.join(models_dir, config["tensorboard_log_dir"])
+        logging.info("Membuat model DQN baru.")
+        tensorboard_log_path = os.path.join(base_dir, config["tensorboard_log_dir"])
         model = DQN(
             env=env,
             tensorboard_log=tensorboard_log_path,
             **config["dqn_params"]
         )
 
-    # Pelatihan
     total_timesteps = config["training"]["num_episodes"] * config["training"]["max_steps_per_episode"]
     custom_callback = CustomLoggerCallback(config=config)
+    save_model_path = os.path.join(models_dir, config["model_filename"])
     
     logging.info(f"===== MEMULAI PELATIHAN: {config['phase_name']} ({total_timesteps} total langkah) =====")
-    phase_start_time = time.time()
+    start_time = time.time()
 
     try:
         model.learn(
             total_timesteps=total_timesteps,
-            reset_num_timesteps=False, # Ini penting agar total timesteps callback terus bertambah
+            reset_num_timesteps=not (load_model_path and os.path.exists(load_model_path)),
             callback=custom_callback
         )
+        model.save(save_model_path)
+        logging.info(f"Pelatihan selesai. Model disimpan di: {save_model_path}")
     except Exception as e:
-        logging.error(f"Terjadi error saat pelatihan '{config['phase_name']}': {e}", exc_info=True)
-        # Simpan model darurat
-        emergency_path = save_model_path.replace(".zip", "_emergency.zip") # Menggunakan save_model_path
+        logging.error(f"Terjadi error saat pelatihan: {e}", exc_info=True)
+        emergency_path = save_model_path.replace(".zip", "_emergency.zip")
         model.save(emergency_path)
         logging.info(f"Model darurat disimpan di: {emergency_path}")
         raise
 
-    model.save(save_model_path) # <-- Menggunakan save_model_path untuk menyimpan
-    logging.info(f"Pelatihan '{config['phase_name']}' selesai. Model disimpan di: {save_model_path}")
-
-    # Ringkasan Fase
-    phase_duration = time.time() - phase_start_time
+    duration = time.time() - start_time
     summary = custom_callback.summary
     num_episodes = custom_callback.episode_count
     avg_lives_lost = summary["Total Lives Lost"] / num_episodes if num_episodes > 0 else 0
 
     logging.info(f"\n===== RINGKASAN PELATIHAN: {config['phase_name']} =====")
-    logging.info(f"Durasi Training: {format_duration(phase_duration)}")
+    logging.info(f"Durasi Training: {format_duration(duration)}")
     logging.info(f"Total Step Dijalani: {summary['Total Steps']}")
-    logging.info(f"Total Episode Selesai (Agen Selalu di Jalur): {summary[TERMINATION_REASON_MAX_STEPS]}")
+    logging.info(f"Total On-Track: {summary[TERMINATION_REASON_MAX_STEPS]}")
     logging.info(f"Total Episode Gagal (Off Track): {summary[TERMINATION_REASON_OFF_TRACK]}")
     logging.info(f"Total Episode Gagal (Tabrakan Fatal): {summary[TERMINATION_REASON_NO_LIVES]}")
+    logging.info(f"Total Episode Gagal (Macet): {summary[TERMINATION_REASON_STUCK]}") # Ditambahkan
     logging.info(f"Total Insiden Tabrakan (Non-Fatal): {summary['Collision Events']}")
     logging.info(f"Rata-rata Kehilangan Nyawa per Episode: {avg_lives_lost:.2f}")
     logging.info("=" * 50 + "\n")
